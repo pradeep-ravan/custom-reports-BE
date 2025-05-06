@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Reports Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+  <style>
+    body {
+      padding-top: 20px;
+      background-color: #f5f5f5;
+    }
+    .card {
+      border: none;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    .card-header {
+      background-color: #0d6efd;
+      color: white;
+      border-bottom: none;
+    }
+    .chart-container {
+      height: 300px;
+      position: relative;
+    }
+    .metric-card {
+      text-align: center;
+      padding: 15px;
+    }
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #0d6efd;
+    }
+    .metric-title {
+      color: #6c757d;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1>Custom Reports Dashboard</h1>
+      <a href="/" class="btn btn-primary">
+        <i class="bi bi-arrow-left"></i> Back to Reports
+      </a>
+    </div>
+    
+    <div class="row">
+      <div class="col-md-3">
+        <div class="card metric-card">
+          <div class="metric-value" id="totalReports">0</div>
+          <div class="metric-title">Total Reports</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card metric-card">
+          <div class="metric-value" id="avgCompletionRate">0%</div>
+          <div class="metric-title">Avg. Completion Rate</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card metric-card">
+          <div class="metric-value" id="avgScore">0</div>
+          <div class="metric-title">Avg. Score</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card metric-card">
+          <div class="metric-value" id="avgTimeSpent">0 min</div>
+          <div class="metric-title">Avg. Time Spent</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Completion Status</h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="completionChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Score Distribution</h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="scoreChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Microskill Distribution</h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="microskillChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Time Spent Distribution</h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-container">
+              <canvas id="timeChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row mt-4 mb-5">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Recent Reports</h5>
+            <button id="refreshBtn" class="btn btn-light btn-sm">
+              <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Report Name</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Metrics</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reportsTable">
+                  <!-- Reports will be loaded here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // DOM Elements
+      const totalReportsEl = document.getElementById('totalReports');
+      const avgCompletionRateEl = document.getElementById('avgCompletionRate');
+      const avgScoreEl = document.getElementById('avgScore');
+      const avgTimeSpentEl = document.getElementById('avgTimeSpent');
+      const reportsTableEl = document.getElementById('reportsTable');
+      const refreshBtn = document.getElementById('refreshBtn');
+      
+      // Chart instances
+      let completionChart;
+      let scoreChart;
+      let microskillChart;
+      let timeChart;
+      
+      // Load dashboard data
+      async function loadDashboardData() {
+        try {
+          // Load all reports
+          const response = await fetch('/api/reports');
+          const reports = await response.json();
+          
+          // Update metrics
+          totalReportsEl.textContent = reports.length;
+          
+          // Process reports table
+          updateReportsTable(reports);
+          
+          // Load report data for charts
+          let allData = [];
+          for (const report of reports.slice(0, 5)) { // Get data from last 5 reports
+            try {
+              const dataRes = await fetch(`/api/reports/${report.id}/data`);
+              if (dataRes.ok) {
+                const reportData = await dataRes.json();
+                allData = [...allData, ...reportData];
+              }
+            } catch (error) {
+              console.error(`Error loading data for report ${report.id}:`, error);
+            }
+          }
+          
+          // Process aggregate metrics and charts
+          if (allData.length > 0) {
+            processAggregateMetrics(allData);
+            createCharts(allData);
+          }
+        } catch (error) {
+          console.error('Error loading dashboard data:', error);
+          alert('Failed to load dashboard data. Please try again.');
+        }
+      }
+      
+      // Update reports table
+      function updateReportsTable(reports) {
+        reportsTableEl.innerHTML = '';
+        
+        if (reports.length === 0) {
+          reportsTableEl.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center">No reports found</td>
+            </tr>
+          `;
+          return;
+        }
+        
+        reports.slice(0, 10).forEach(report => {
+          const row = document.createElement('tr');
+          const createdDate = new Date(report.created_at).toLocaleString();
+          const metrics = JSON.parse(report.metrics).join(', ');
+          
+          row.innerHTML = `
+            <td>${report.name}</td>
+            <td>${report.user_name || 'System'}</td>
+            <td>${createdDate}</td>
+            <td>${metrics}</td>
+            <td>
+              <a href="/?view=${report.id}" class="btn btn-sm btn-primary">
+                <i class="bi bi-eye"></i> View
+              </a>
+            </td>
+          `;
+          
+          reportsTableEl.appendChild(row);
+        });
+      }
+      
+      // Process aggregate metrics
+      function processAggregateMetrics(data) {
+        // Completion rate
+        const completedCount = data.filter(item => item['Completion Status'] === 'Completed').length;
+        const completionRate = (completedCount / data.length) * 100;
+        avgCompletionRateEl.textContent = `${Math.round(completionRate)}%`;
+        
+        // Average score
+        if (data.some(item => 'Score' in item)) {
+          const scores = data.filter(item => 'Score' in item).map(item => parseInt(item.Score) || 0);
+          const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+          avgScoreEl.textContent = Math.round(avgScore);
+        }
+        
+        // Average time spent
+        if (data.some(item => 'Time Spent' in item)) {
+          const times = data.filter(item => 'Time Spent' in item).map(item => {
+            const timeStr = item['Time Spent'] || '0 minutes';
+            return parseInt(timeStr.split(' ')[0]);
+          });
+          const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+          avgTimeSpentEl.textContent = `${Math.round(avgTime)} min`;
+        }
+      }
+      
+      // Create dashboard charts
+      function createCharts(data) {
+        // Completion Status Chart
+        if (data.some(item => 'Completion Status' in item)) {
+          const statusCounts = {};
+          data.forEach(item => {
+            const status = item['Completion Status'] || 'Unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+          });
+          
+          const completionCtx = document.getElementById('completionChart').getContext('2d');
+          if (completionChart) completionChart.destroy();
+          completionChart = new Chart(completionCtx, {
+            type: 'pie',
+            data: {
+              labels: Object.keys(statusCounts),
+              datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: [
+                  'rgba(75, 192, 192, 0.7)',
+                  'rgba(255, 99, 132, 0.7)',
+                  'rgba(255, 206, 86, 0.7)'
+                ]
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+        }
+        
+        // Score Distribution Chart
+        if (data.some(item => 'Score' in item)) {
+          const scoreRanges = {
+            '0-20': 0,
+            '21-40': 0,
+            '41-60': 0,
+            '61-80': 0,
+            '81-100': 0
+          };
+          
+          data.forEach(item => {
+            const score = parseInt(item.Score || 0);
+            if (score <= 20) scoreRanges['0-20']++;
+            else if (score <= 40) scoreRanges['21-40']++;
+            else if (score <= 60) scoreRanges['41-60']++;
+            else if (score <= 80) scoreRanges['61-80']++;
+            else scoreRanges['81-100']++;
+          });
+          
+          const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+          if (scoreChart) scoreChart.destroy();
+          scoreChart = new Chart(scoreCtx, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(scoreRanges),
+              datasets: [{
+                label: 'Students',
+                data: Object.values(scoreRanges),
+                backgroundColor: 'rgba(54, 162, 235, 0.7)'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        }
+        
+        // Microskill Chart
+        if (data.some(item => 'Microskill Name' in item)) {
+          const skillCounts = {};
+          
+          data.forEach(item => {
+            const skill = item['Microskill Name'] || 'Unknown';
+            skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+          });
+          
+          const microskillCtx = document.getElementById('microskillChart').getContext('2d');
+          if (microskillChart) microskillChart.destroy();
+          microskillChart = new Chart(microskillCtx, {
+            type: 'doughnut',
+            data: {
+              labels: Object.keys(skillCounts),
+              datasets: [{
+                data: Object.values(skillCounts),
+                backgroundColor: [
+                  'rgba(255, 99, 132, 0.7)',
+                  'rgba(54, 162, 235, 0.7)',
+                  'rgba(255, 206, 86, 0.7)',
+                  'rgba(75, 192, 192, 0.7)',
+                  'rgba(153, 102, 255, 0.7)'
+                ]
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false
+            }
+          });
+        }
+        
+        // Time Spent Chart
+        if (data.some(item => 'Time Spent' in item)) {
+          const timeRanges = {
+            '0-30 min': 0,
+            '31-60 min': 0,
+            '61-90 min': 0,
+            '91-120 min': 0,
+            '120+ min': 0
+          };
+          
+          data.forEach(item => {
+            const timeStr = item['Time Spent'] || '0 minutes';
+            const time = parseInt(timeStr.split(' ')[0]);
+            
+            if (time <= 30) timeRanges['0-30 min']++;
+            else if (time <= 60) timeRanges['31-60 min']++;
+            else if (time <= 90) timeRanges['61-90 min']++;
+            else if (time <= 120) timeRanges['91-120 min']++;
+            else timeRanges['120+ min']++;
+          });
+          
+          const timeCtx = document.getElementById('timeChart').getContext('2d');
+          if (timeChart) timeChart.destroy();
+          timeChart = new Chart(timeCtx, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(timeRanges),
+              datasets: [{
+                label: 'Students',
+                data: Object.values(timeRanges),
+                backgroundColor: 'rgba(75, 192, 192, 0.7)'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        }
+      }
+      
+      // Refresh button handler
+      refreshBtn.addEventListener('click', loadDashboardData);
+      
+      // Initial load
+      loadDashboardData();
+    });
+  </script>
+</body>
+</html>
